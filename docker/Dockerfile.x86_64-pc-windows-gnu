@@ -1,0 +1,32 @@
+
+
+FROM --platform=amd64 rust:1.77.2-slim-bookworm AS build
+
+WORKDIR /work
+ARG TARGET=x86_64-pc-windows-gnu
+
+RUN --mount=type=cache,target=/var/lib/apt/lists \
+    --mount=type=cache,target=/var/cache/apt \
+        apt-get update && apt upgrade -y; \
+        apt-get install -y g++-mingw-w64-x86-64
+
+COPY ./ ./
+
+RUN rustup target add ${TARGET}
+RUN --mount=type=cache,target=/usr/local/cargo,from=rust:1.77.2,source=/usr/local/cargo \
+    --mount=type=cache,target=./target/release \
+        cargo build -r --target ${TARGET}
+
+
+
+FROM gcr.io/distroless/cc-debian12:latest
+
+WORKDIR /work
+
+ARG TARGET=x86_64-pc-windows-gnu
+ARG EXE_FILENAME=voicepeak-aux.exe
+
+COPY --from=build /work/target/${TARGET}/release/${EXE_FILENAME} ./
+
+ENTRYPOINT [ "./voicepeak-aux.exe",  ]
+CMD [ "--help" ]
